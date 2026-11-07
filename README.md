@@ -2,7 +2,7 @@
 
 A simple Pomodoro timer for study sessions, built as my Week 1 vibe-coded app.
 
-**Live app:** https://USERNAME.github.io/focus-timer/
+**Live app:** https://batu_bat.github.io/focus-timer/
 
 ## Features
 - Focus (25 min), short break (5 min) and long break (15 min) modes
