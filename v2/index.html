@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Focus Timer v2</title>
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --card: #ffffff;
+    --text: #1f2328;
+    --muted: #6b6f76;
+    --accent: #d9480f;
+    --accent-soft: #fde4d6;
+    --border: #e4e0d6;
+    --warn: #c92a2a;
+    --ok: #2b8a3e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --card: #20232a;
+      --text: #eceef1;
+      --muted: #9aa0a8;
+      --accent: #ff7a45;
+      --accent-soft: #3a2a22;
+      --border: #2f333b;
+      --warn: #ff6b6b;
+      --ok: #51cf66;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 28px 16px;
+  }
+  main { width: 100%; max-width: 420px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+  h1 { font-size: 1.3rem; margin: 0; }
+  .today { color: var(--muted); font-size: 0.85rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
+    position: relative;
+  }
+  .screen { display: none; }
+  .screen.show { display: block; }
+  h2 { font-size: 1.15rem; margin: 0 0 14px; }
+  .label { font-size: 0.85rem; color: var(--muted); margin: 18px 0 8px; }
+  button { font: inherit; cursor: pointer; }
+  .btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    font-size: 1rem;
+    font-weight: 600;
+    background: var(--border);
+    color: var(--text);
+  }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn + .btn { margin-top: 10px; }
+  .row { display: flex; gap: 10px; }
+  .row .btn + .btn { margin-top: 0; }
+  .choice {
+    flex: 1;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+  }
+  .choice.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+ 
+  /* Plan */
+  .task-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  input[type=text] {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  .x { border: none; background: none; color: var(--muted); font-size: 1.2rem; padding: 0 6px; }
+  .add { border: 1px dashed var(--border); background: none; color: var(--muted); width: 100%; padding: 10px; border-radius: 10px; }
+  .checks label { display: flex; gap: 10px; align-items: center; padding: 6px 0; font-size: 0.95rem; }
+  .checks input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .hint { font-size: 0.8rem; color: var(--muted); margin: 10px 0 0; text-align: center; }
+ 
+  /* Focus */
+  .now-label { text-align: center; font-size: 0.75rem; letter-spacing: 1px; color: var(--muted); }
+  .now {
+    text-align: center;
+    font-size: 1.15rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    margin: 6px 0 18px;
+    word-break: break-word;
+  }
+  .ring { width: 210px; height: 210px; margin: 0 auto 18px; position: relative; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 10; }
+  .ring .track { stroke: var(--border); }
+  .ring .fill { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 0.3s linear; }
+  .ring .time {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px;
+  }
+  .ring .time small { font-size: 0.8rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+  .next { font-size: 0.85rem; color: var(--muted); margin-top: 14px; text-align: center; }
+ 
+  /* Time's up overlay */
+  .overlay {
+    display: none;
+    position: absolute; inset: 0;
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    border-radius: 16px;
+    padding: 22px;
+    flex-direction: column; justify-content: center; text-align: center;
+  }
+  .overlay.show { display: flex; }
+  .overlay h3 { margin: 0 0 6px; font-size: 1.3rem; }
+  .overlay p { margin: 0 0 20px; color: var(--muted); }
+ 
+  /* Break */
+  .break-time { text-align: center; font-size: 3.4rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
+  .break-sub { text-align: center; color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+  .over .break-time, .over .break-sub { color: var(--warn); }
+  .tip { font-size: 0.85rem; color: var(--muted); margin: 14px 0 18px; }
+ 
+  /* Summary */
+  .big { text-align: center; font-size: 2rem; font-weight: 700; margin: 4px 0 16px; }
+  .done-list { list-style: none; padding: 0; margin: 0 0 6px; }
+  .done-list li { padding: 7px 0; border-bottom: 1px solid var(--border); display: flex; gap: 10px; }
+  .done-list li:last-child { border-bottom: none; }
+  .done-list .ok { color: var(--ok); }
+  .done-list .no { color: var(--muted); }
+  .faces { display: flex; gap: 10px; }
+  .faces .choice { font-size: 0.9rem; }
+  .stats { color: var(--muted); font-size: 0.9rem; text-align: center; margin: 16px 0; }
+  footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 14px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Focus Timer</h1>
+    <span class="today" id="todayStats"></span>
+  </header>
+ 
+  <div class="card">
+ 
+    <!-- 1. PLAN -->
+    <section class="screen" id="plan">
+      <h2>What will you finish this session?</h2>
+      <div id="taskInputs"></div>
+      <button class="add" id="addTask" type="button">+ add task (max 3)</button>
+ 
+      <div class="label">Session length</div>
+      <div class="row" id="lenChoices">
+        <button class="choice" data-len="25">25 min</button>
+        <button class="choice" data-len="50">50 min</button>
+      </div>
+ 
+      <div class="label">Break length</div>
+      <div class="row" id="breakChoices">
+        <button class="choice" data-break="5">5 min</button>
+        <button class="choice" data-break="10">10 min</button>
+      </div>
+ 
+      <div class="label">Before you start</div>
+      <div class="checks">
+        <label><input type="checkbox" id="chkPhone"> Phone on silent and out of reach</label>
+        <label><input type="checkbox" id="chkFirst"> I know what to do first</label>
+      </div>
+ 
+      <button class="btn primary" id="startBtn" style="margin-top:18px">Start session ▶</button>
+      <p class="hint" id="planHint">Add at least one task to start.</p>
+    </section>
+ 
+    <!-- 2. FOCUS (+ 3. TIME'S UP overlay) -->
+    <section class="screen" id="focus">
+      <div class="now-label">NOW</div>
+      <div class="now" id="nowTask"></div>
+      <div class="ring">
+        <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="52"/><circle class="fill" id="ringFill" cx="60" cy="60" r="52"/></svg>
+        <div class="time"><span id="focusTime">25:00</span><small id="focusState">focus</small></div>
+      </div>
+      <button class="btn primary" id="taskDoneBtn">✓ Task done</button>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="pauseBtn">Pause</button>
+        <button class="btn" id="endBtn">End session</button>
+      </div>
+      <div class="next" id="nextTask"></div>
+ 
+      <div class="overlay" id="timesUp">
+        <h3 id="upTitle">25 min done :)</h3>
+        <p>In the middle of something?</p>
+        <button class="btn primary" id="keepBtn">Keep going +10 min</button>
+        <button class="btn" id="breakBtn">Take a break</button>
+      </div>
+    </section>
+ 
+    <!-- 4. BREAK -->
+    <section class="screen" id="break">
+      <h2 style="text-align:center">Break</h2>
+      <div id="breakBox">
+        <div class="break-time" id="breakTime">05:00</div>
+        <div class="break-sub" id="breakSub">left</div>
+      </div>
+      <div class="label">When you come back:</div>
+      <div class="now" id="backTask"></div>
+      <p class="tip">Tip: leave the phone in another room during the break, so 5 minutes stays 5 minutes.</p>
+      <button class="btn primary" id="backBtn">I'm back ▶</button>
+    </section>
+ 
+    <!-- 5. SUMMARY -->
+    <section class="screen" id="summary">
+      <h2 style="text-align:center">Session done</h2>
+      <div class="big" id="sumBig"></div>
+      <ul class="done-list" id="sumList"></ul>
+      <div class="label">Did you understand what you studied?</div>
+      <div class="faces" id="faces">
+        <button class="choice" data-face="1">Not really</button>
+        <button class="choice" data-face="2">Partly</button>
+        <button class="choice" data-face="3">Yes</button>
+      </div>
+      <div class="stats" id="sumStats"></div>
+      <button class="btn primary" id="nextSessionBtn">Plan next session</button>
+      <p class="hint">Unfinished tasks move to your next plan.</p>
+    </section>
+ 
+  </div>
+ 
+  <footer>Week 4 redesign · <a href="../">v1 (Week 1)</a></footer>
+</main>
+ 
+<script>
+  // ---------- storage (safe) ----------
+  function load(key, fallback) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch (e) { return fallback; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+ 
+  // ---------- state ----------
+  const todayKey = new Date().toDateString();
+  let today = load('ft2-today', { day: todayKey, sessions: 0, tasksDone: 0 });
+  if (today.day !== todayKey) today = { day: todayKey, sessions: 0, tasksDone: 0 };
+ 
+  let s = load('ft2-state', null) || {
+    phase: 'plan',          // plan | focus | break | summary
+    tasks: [{ text: '', done: false }],
+    len: 25,                // focus minutes
+    breakLen: 5,            // break minutes
+    endAt: 0,               // timestamp when focus/break ends
+    pausedLeft: 0,          // seconds left when paused (0 = not paused)
+    total: 25 * 60,         // seconds of current focus block (for ring)
+    timesUp: false,
+    face: 0
+  };
+ 
+  function persist() { save('ft2-state', s); save('ft2-today', today); }
+ 
+  // ---------- helpers ----------
+  const $ = id => document.getElementById(id);
+  function fmt(sec) {
+    sec = Math.max(0, Math.round(sec));
+    return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+  }
+  function realTasks() { return s.tasks.filter(t => t.text.trim()); }
+  function currentTask() { return realTasks().find(t => !t.done); }
+ 
+  // Soft sound: one gentle tone, not an alarm (finding P1/P3)
+  function softSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = 523;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.2);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 1.3);
+    } catch (e) {}
+  }
+ 
+  function show(phase) {
+    s.phase = phase;
+    document.querySelectorAll('.screen').forEach(el => el.classList.toggle('show', el.id === phase));
+    persist();
+    render();
+  }
+ 
+  // ---------- 1. PLAN ----------
+  function renderPlan() {
+    const box = $('taskInputs');
+    box.innerHTML = '';
+    s.tasks.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'task-row';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 60;
+      input.placeholder = i === 0 ? 'e.g. Micro ch.3 – practice questions' : 'Another small task';
+      input.value = t.text;
+      input.addEventListener('input', () => { s.tasks[i].text = input.value; persist(); updatePlanButton(); });
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') $('startBtn').click(); });
+      row.appendChild(input);
+      if (s.tasks.length > 1) {
+        const x = document.createElement('button');
+        x.className = 'x'; x.type = 'button'; x.textContent = '×';
+        x.setAttribute('aria-label', 'Remove task');
+        x.addEventListener('click', () => { s.tasks.splice(i, 1); persist(); renderPlan(); });
+        row.appendChild(x);
+      }
+      box.appendChild(row);
+    });
+    $('addTask').style.display = s.tasks.length >= 3 ? 'none' : 'block';
+    document.querySelectorAll('#lenChoices .choice').forEach(b => b.classList.toggle('active', +b.dataset.len === s.len));
+    document.querySelectorAll('#breakChoices .choice').forEach(b => b.classList.toggle('active', +b.dataset.break === s.breakLen));
+    updatePlanButton();
+  }
+  function updatePlanButton() {
+    const ok = realTasks().length > 0;
+    $('startBtn').disabled = !ok;
+    $('planHint').style.visibility = ok ? 'hidden' : 'visible';
+  }
+  $('addTask').addEventListener('click', () => {
+    if (s.tasks.length < 3) { s.tasks.push({ text: '', done: false }); persist(); renderPlan(); $('taskInputs').lastChild.querySelector('input').focus(); }
+  });
+  $('lenChoices').addEventListener('click', e => { if (e.target.dataset.len) { s.len = +e.target.dataset.len; persist(); renderPlan(); } });
+  $('breakChoices').addEventListener('click', e => { if (e.target.dataset.break) { s.breakLen = +e.target.dataset.break; persist(); renderPlan(); } });
+  $('startBtn').addEventListener('click', () => {
+    if (!realTasks().length) return;
+    s.tasks = realTasks();
+    s.face = 0;
+    startFocus(s.len * 60);
+  });
+ 
+  // ---------- 2. FOCUS ----------
+  function startFocus(seconds) {
+    s.total = seconds;
+    s.endAt = Date.now() + seconds * 1000;
+    s.pausedLeft = 0;
+    s.timesUp = false;
+    show('focus');
+  }
+  function focusLeft() {
+    if (s.pausedLeft) return s.pausedLeft;
+    return Math.max(0, (s.endAt - Date.now()) / 1000);
+  }
+  function renderFocus() {
+    const cur = currentTask();
+    $('nowTask').textContent = cur ? cur.text : 'All tasks done!';
+    const rest = realTasks().filter(t => !t.done);
+    $('nextTask').textContent = rest.length > 1 ? 'Next: ' + rest[1].text : '';
+    const left = focusLeft();
+    $('focusTime').textContent = fmt(left);
+    $('focusState').textContent = s.pausedLeft ? 'paused' : 'focus';
+    $('pauseBtn').textContent = s.pausedLeft ? 'Resume' : 'Pause';
+    const c = 2 * Math.PI * 52;
+    const fill = $('ringFill');
+    fill.style.strokeDasharray = c;
+    fill.style.strokeDashoffset = c * (left / s.total);
+    $('timesUp').classList.toggle('show', s.timesUp);
+    $('upTitle').textContent = Math.round(s.total / 60) + ' min done :)';
+    $('breakBtn').textContent = 'Take a ' + s.breakLen + ' min break';
+    document.title = (s.timesUp ? 'Time is up · ' : fmt(left) + ' · ') + 'Focus Timer';
+  }
+  $('pauseBtn').addEventListener('click', () => {
+    if (s.pausedLeft) { s.endAt = Date.now() + s.pausedLeft * 1000; s.pausedLeft = 0; }
+    else { s.pausedLeft = Math.max(1, focusLeft()); }
+    persist(); render();
+  });
+  $('taskDoneBtn').addEventListener('click', () => {
+    const cur = currentTask();
+    if (!cur) return;
+    cur.done = true;
+    today.tasksDone++;
+    persist();
+    if (!currentTask()) endSession(); else render();
+  });
+  $('endBtn').addEventListener('click', endSession);
+ 
+  // ---------- 3. TIME'S UP ----------
+  $('keepBtn').addEventListener('click', () => startFocus(10 * 60));
+  $('breakBtn').addEventListener('click', () => {
+    s.endAt = Date.now() + s.breakLen * 60 * 1000;
+    s.timesUp = false;
+    s.breakBeeped = false;
+    show('break');
+  });
+ 
+  // ---------- 4. BREAK ----------
+  function renderBreak() {
+    const diff = (s.endAt - Date.now()) / 1000;
+    const over = diff < 0;
+    $('breakBox').classList.toggle('over', over);
+    $('breakTime').textContent = (over ? '+' : '') + fmt(Math.abs(diff));
+    $('breakSub').textContent = over ? 'over your ' + s.breakLen + ' min break' : 'left';
+    const cur = currentTask();
+    $('backTask').textContent = cur ? cur.text : '–';
+    document.title = (over ? 'Break is over · ' : fmt(diff) + ' break · ') + 'Focus Timer';
+  }
+  $('backBtn').addEventListener('click', () => startFocus(s.len * 60));
+ 
+  // ---------- 5. SUMMARY ----------
+  function endSession() {
+    today.sessions++;
+    persist();
+    show('summary');
+  }
+  function renderSummary() {
+    const all = realTasks();
+    const done = all.filter(t => t.done).length;
+    $('sumBig').textContent = done + ' of ' + all.length + ' task' + (all.length === 1 ? '' : 's');
+    $('sumList').innerHTML = '';
+    all.forEach(t => {
+      const li = document.createElement('li');
+      const mark = document.createElement('span');
+      mark.className = t.done ? 'ok' : 'no';
+      mark.textContent = t.done ? '✓' : '○';
+      const txt = document.createElement('span');
+      txt.textContent = t.text;
+      li.append(mark, txt);
+      $('sumList').appendChild(li);
+    });
+    document.querySelectorAll('#faces .choice').forEach(b => b.classList.toggle('active', +b.dataset.face === s.face));
+    $('sumStats').textContent = 'Today: ' + today.sessions + ' session' + (today.sessions === 1 ? '' : 's') +
+      ' · ' + today.tasksDone + ' task' + (today.tasksDone === 1 ? '' : 's') + ' done';
+    document.title = 'Session done · Focus Timer';
+  }
+  $('faces').addEventListener('click', e => { if (e.target.dataset.face) { s.face = +e.target.dataset.face; persist(); render(); } });
+  $('nextSessionBtn').addEventListener('click', () => {
+    const left = realTasks().filter(t => !t.done);
+    s.tasks = left.length ? left : [{ text: '', done: false }];
+    $('chkPhone').checked = false;
+    $('chkFirst').checked = false;
+    show('plan');
+  });
+ 
+  // ---------- main loop ----------
+  function render() {
+    $('todayStats').textContent = 'Today: ' + today.tasksDone + ' ✓';
+    if (s.phase === 'plan') renderPlan();
+    if (s.phase === 'focus') renderFocus();
+    if (s.phase === 'break') renderBreak();
+    if (s.phase === 'summary') renderSummary();
+  }
+ 
+  setInterval(() => {
+    if (s.phase === 'focus' && !s.pausedLeft && !s.timesUp && focusLeft() <= 0) {
+      s.timesUp = true;        // soft stop, no hard alarm
+      persist();
+      softSound();
+    }
+    if (s.phase === 'break' && !s.breakBeeped && Date.now() >= s.endAt) {
+      s.breakBeeped = true;
+      persist();
+      softSound();
+    }
+    if (s.phase === 'focus' || s.phase === 'break') render();
+  }, 250);
+ 
+  show(s.phase);
+</script>
+</body>
+</html>
+ 
